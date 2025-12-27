@@ -13,11 +13,19 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http.csrf(csrf -> csrf.disable())
+        http
+                .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
+                        // Public signup endpoint
+                        .requestMatchers("/api/auth/profile").permitAll()
+
+                        // Admin endpoints (Spring looks for ROLE_ADMIN)
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/citizen/**").hasRole("CITIZEN")
-                        .requestMatchers("/api/auth/profile").permitAll() // Allow initial signup
+
+                        // Volunteer endpoints (Spring looks for ROLE_VOLUNTEER)
+                        .requestMatchers("/api/volunteer/**").hasRole("VOLUNTEER")
+
+                        // Any other request just needs a valid token
                         .anyRequest().authenticated())
                 .addFilterBefore(new FirebaseTokenFilter(), UsernamePasswordAuthenticationFilter.class);
 

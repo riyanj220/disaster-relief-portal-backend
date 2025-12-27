@@ -26,32 +26,30 @@ public class FirebaseTokenFilter extends OncePerRequestFilter {
         if (header != null && header.startsWith("Bearer ")) {
             String idToken = header.substring(7);
             try {
-                // Verify the token with Firebase Admin SDK
                 FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(idToken);
 
-                // Extract the role we set during registration
+                // 1. Get role from token
                 String role = (String) decodedToken.getClaims().get("role");
 
-                // If no role is found (e.g., first-time login), default to CITIZEN or handle
-                // accordingly
+                // 2. Default to CITIZEN if null
                 if (role == null)
                     role = "CITIZEN";
 
-                // Map the role to Spring Security Authority (prefixed with ROLE_ as per Spring
-                // standards)
-                List<SimpleGrantedAuthority> authorities = Collections.singletonList(
-                        new SimpleGrantedAuthority("ROLE_" + role));
+                // 3. CRITICAL FIX: Convert to Uppercase and add ROLE_ prefix
+                // This ensures "admin" becomes "ROLE_ADMIN" to match .hasRole("ADMIN")
+                String authorityName = "ROLE_" + role.toUpperCase().trim();
 
-                // Set the authentication in the security context
+                List<SimpleGrantedAuthority> authorities = Collections.singletonList(
+                        new SimpleGrantedAuthority(authorityName));
+
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                         decodedToken.getUid(), null, authorities);
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 
             } catch (Exception e) {
-                // If token verification fails, return 401
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.getWriter().write("Invalid or expired Firebase token");
+                response.getWriter().write("Invalid Firebase token: " + e.getMessage());
                 return;
             }
         }
