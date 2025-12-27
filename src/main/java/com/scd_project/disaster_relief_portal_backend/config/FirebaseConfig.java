@@ -8,7 +8,6 @@ import com.google.cloud.firestore.Firestore;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
-
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.io.InputStream;
@@ -19,14 +18,15 @@ public class FirebaseConfig {
     @PostConstruct
     public void initialize() {
         try {
-            InputStream serviceAccount = new ClassPathResource("serviceAccountKey.json").getInputStream();
-
-            FirebaseOptions options = FirebaseOptions.builder()
-                    .setCredentials(GoogleCredentials.fromStream(serviceAccount))
-                    .build();
-
             if (FirebaseApp.getApps().isEmpty()) {
+                InputStream serviceAccount = new ClassPathResource("serviceAccountKey.json").getInputStream();
+
+                FirebaseOptions options = FirebaseOptions.builder()
+                        .setCredentials(GoogleCredentials.fromStream(serviceAccount))
+                        .build();
+
                 FirebaseApp.initializeApp(options);
+                System.out.println("Firebase initialized successfully");
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -35,8 +35,8 @@ public class FirebaseConfig {
 
     @Bean
     public Firestore getFirestore() {
-        // This bean allows you to inject 'Firestore' into your services
-        // Example: private final Firestore firestore;
+        // This returns the Firestore instance associated with the default FirebaseApp
+        // It remains open as long as the FirebaseApp is alive
         return FirestoreClient.getFirestore();
     }
 }

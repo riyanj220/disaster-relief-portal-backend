@@ -12,12 +12,32 @@ public class AuthController {
 
     private final AuthService authService;
 
+    /**
+     * Endpoint to save the user profile and assign their role.
+     * In an end-to-end flow, the frontend calls this immediately after
+     * Firebase Auth signup is successful.
+     */
     @PostMapping("/profile")
     public String saveProfile(@RequestBody User user) {
         try {
-            return authService.saveUserProfile(user);
+            // Automatically get the UID from the validated Firebase token
+            String uid = (String) org.springframework.security.core.context.SecurityContextHolder
+                    .getContext().getAuthentication().getPrincipal();
+
+            user.setUid(uid); // Override whatever the user sent in the body
+            return authService.registerUser(user);
         } catch (Exception e) {
-            return "Error saving profile: " + e.getMessage();
+            return "Error: " + e.getMessage();
         }
+    }
+
+    /**
+     * A helper endpoint to verify if the token authentication is working.
+     */
+    @GetMapping("/me")
+    public String checkAuth() {
+        return "You are authenticated! Your UID is: " +
+                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication()
+                        .getPrincipal();
     }
 }
