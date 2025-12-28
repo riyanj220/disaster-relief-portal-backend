@@ -19,10 +19,40 @@ public class AdminService {
 
     private final Firestore firestore;
 
+    // Dashboard summary
+    public Map<String, Object> getDashboardStats() throws ExecutionException, InterruptedException {
+        List<ReliefRequest> allRequests = getAllRequests(); // Already excludes Rejected
+        List<User> volunteers = getAllVolunteers();
+        List<InventoryItem> inventory = getAllInventory();
+
+        long pendingCount = allRequests.stream().filter(r -> "Pending".equals(r.getStatus())).count();
+        long criticalStock = inventory.stream().filter(i -> i.getQuantity() <= 10).count();
+        // Assuming "Active" means Approved but not yet Completed
+        long activeMissions = allRequests.stream().filter(r -> "Approved".equals(r.getStatus())).count();
+
+        return Map.of(
+                "pendingRequests", pendingCount,
+                "activeMissions", activeMissions,
+                "totalVolunteers", volunteers.size(),
+                "criticalItems", criticalStock,
+                "topRequests", allRequests.stream()
+                        .filter(r -> "Pending".equals(r.getStatus()))
+                        .sorted((a, b) -> b.getUrgency().compareTo(a.getUrgency())) // Simple urgency sort
+                        .limit(3)
+                        .collect(Collectors.toList()));
+    }
+
     // --- REQUEST CONTROL ---
 
     public List<ReliefRequest> getAllRequests() throws ExecutionException, InterruptedException {
-        return firestore.collection("requests").get().get().getDocuments().stream()
+        // Modify query to filter out "Rejected" requests
+        // Using whereNotEqualTo ensures the Admin only sees active or completed tasks
+        return firestore.collection("requests")
+                .whereNotEqualTo("status", "Rejected")
+                .get()
+                .get()
+                .getDocuments()
+                .stream()
                 .map(doc -> doc.toObject(ReliefRequest.class))
                 .collect(Collectors.toList());
     }

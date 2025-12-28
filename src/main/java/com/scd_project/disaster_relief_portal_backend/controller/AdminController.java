@@ -17,6 +17,11 @@ public class AdminController {
 
     private final AdminService adminService;
 
+    @GetMapping("/stats")
+    public Map<String, Object> getDashboardStats() throws Exception {
+        return adminService.getDashboardStats();
+    }
+
     // View all requests in the system
     @GetMapping("/requests")
     public List<ReliefRequest> getAllRequests() throws Exception {

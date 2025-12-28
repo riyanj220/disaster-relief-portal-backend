@@ -37,6 +37,7 @@ public class RequestService {
         // Query the "requests" collection
         ApiFuture<QuerySnapshot> future = firestore.collection("requests")
                 .whereEqualTo("citizenId", citizenId)
+                .orderBy("timestamp", Query.Direction.DESCENDING)
                 .get();
 
         // Convert the Firestore documents into a List of ReliefRequest objects
