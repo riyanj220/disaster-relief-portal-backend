@@ -45,10 +45,12 @@ public class AdminService {
     // --- REQUEST CONTROL ---
 
     public List<ReliefRequest> getAllRequests() throws ExecutionException, InterruptedException {
-        // Modify query to filter out "Rejected" requests
-        // Using whereNotEqualTo ensures the Admin only sees active or completed tasks
+        // 1. Filter out "Rejected" status
+        // 2. Sort by timestamp in DESCENDING order (latest first)
         return firestore.collection("requests")
                 .whereNotEqualTo("status", "Rejected")
+                .orderBy("status") // Firestore requirement: first orderBy must match the inequality filter field
+                .orderBy("timestamp", Query.Direction.DESCENDING)
                 .get()
                 .get()
                 .getDocuments()
@@ -93,5 +95,16 @@ public class AdminService {
     public String removeVolunteer(String volunteerId) {
         firestore.collection("users").document(volunteerId).delete();
         return "Volunteer " + volunteerId + " removed from network.";
+    }
+
+    // Fetch history of a specific volunteer
+    public List<ReliefRequest> getVolunteerTaskHistory(String volunteerId)
+            throws ExecutionException, InterruptedException {
+        return firestore.collection("requests")
+                .whereEqualTo("assignedVolunteerId", volunteerId)
+                .whereEqualTo("status", "Completed")
+                .get().get().getDocuments().stream()
+                .map(doc -> doc.toObject(ReliefRequest.class))
+                .collect(Collectors.toList());
     }
 }

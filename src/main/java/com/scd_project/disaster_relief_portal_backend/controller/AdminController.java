@@ -57,4 +57,9 @@ public class AdminController {
     public String deleteVolunteer(@PathVariable String id) {
         return adminService.removeVolunteer(id);
     }
+
+    @GetMapping("/volunteers/{id}/history")
+    public List<ReliefRequest> getVolunteerHistory(@PathVariable String id) throws Exception {
+        return adminService.getVolunteerTaskHistory(id);
+    }
 }
