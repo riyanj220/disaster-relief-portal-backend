@@ -3,6 +3,7 @@ package com.scd_project.disaster_relief_portal_backend.controller;
 import com.scd_project.disaster_relief_portal_backend.model.User;
 import com.scd_project.disaster_relief_portal_backend.service.AuthService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -12,32 +13,32 @@ public class AuthController {
 
     private final AuthService authService;
 
-    /**
-     * Endpoint to save the user profile and assign their role.
-     * In an end-to-end flow, the frontend calls this immediately after
-     * Firebase Auth signup is successful.
-     */
+    // Used during Signup to create the profile
     @PostMapping("/profile")
     public String saveProfile(@RequestBody User user) {
         try {
-            // Automatically get the UID from the validated Firebase token
-            String uid = (String) org.springframework.security.core.context.SecurityContextHolder
-                    .getContext().getAuthentication().getPrincipal();
+            // Extracts UID from the verified JWT token
+            String uid = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 
-            user.setUid(uid); // Override whatever the user sent in the body
+            user.setUid(uid);
             return authService.registerUser(user);
         } catch (Exception e) {
             return "Error: " + e.getMessage();
         }
     }
 
-    /**
-     * A helper endpoint to verify if the token authentication is working.
-     */
+    // Used by React (Zustand) to fetch the logged-in user's details and role
     @GetMapping("/me")
-    public String checkAuth() {
-        return "You are authenticated! Your UID is: " +
-                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication()
-                        .getPrincipal();
+    public User getCurrentUser() {
+        try {
+            // Get UID from the Spring Security context
+            String uid = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+
+            // Return the full User object from Firestore
+            return authService.getUserByUid(uid);
+        } catch (Exception e) {
+            // Returning null or a 401/404 is cleaner than a stack trace for the frontend
+            return null;
+        }
     }
 }

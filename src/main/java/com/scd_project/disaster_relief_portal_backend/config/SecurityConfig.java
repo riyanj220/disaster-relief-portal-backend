@@ -1,5 +1,7 @@
 package com.scd_project.disaster_relief_portal_backend.config;
 
+import java.util.List;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -14,18 +16,18 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
+                .cors(cors -> cors.configurationSource(request -> {
+                    var corsConfiguration = new org.springframework.web.cors.CorsConfiguration();
+                    corsConfiguration.setAllowedOrigins(List.of("http://localhost:3000", "http://localhost:5173"));
+                    corsConfiguration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE"));
+                    corsConfiguration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+                    return corsConfiguration;
+                }))
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        // Public signup endpoint
                         .requestMatchers("/api/auth/profile").permitAll()
-
-                        // Admin endpoints (Spring looks for ROLE_ADMIN)
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
-
-                        // Volunteer endpoints (Spring looks for ROLE_VOLUNTEER)
                         .requestMatchers("/api/volunteer/**").hasRole("VOLUNTEER")
-
-                        // Any other request just needs a valid token
                         .anyRequest().authenticated())
                 .addFilterBefore(new FirebaseTokenFilter(), UsernamePasswordAuthenticationFilter.class);
 

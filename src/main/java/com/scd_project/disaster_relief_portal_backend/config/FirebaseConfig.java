@@ -8,35 +8,31 @@ import com.google.cloud.firestore.Firestore;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
-import jakarta.annotation.PostConstruct;
+
 import java.io.IOException;
 import java.io.InputStream;
 
 @Configuration
 public class FirebaseConfig {
 
-    @PostConstruct
-    public void initialize() {
-        try {
-            if (FirebaseApp.getApps().isEmpty()) {
-                InputStream serviceAccount = new ClassPathResource("serviceAccountKey.json").getInputStream();
-
-                FirebaseOptions options = FirebaseOptions.builder()
-                        .setCredentials(GoogleCredentials.fromStream(serviceAccount))
-                        .build();
-
-                FirebaseApp.initializeApp(options);
-                System.out.println("Firebase initialized successfully");
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
     @Bean
-    public Firestore getFirestore() {
-        // This returns the Firestore instance associated with the default FirebaseApp
-        // It remains open as long as the FirebaseApp is alive
+    public Firestore getFirestore() throws IOException {
+        // Step 1: Check if FirebaseApp is already initialized to prevent "App already
+        // exists" error
+        if (FirebaseApp.getApps().isEmpty()) {
+            InputStream serviceAccount = new ClassPathResource("serviceAccountKey.json").getInputStream();
+
+            FirebaseOptions options = FirebaseOptions.builder()
+                    .setCredentials(GoogleCredentials.fromStream(serviceAccount))
+                    .build();
+
+            FirebaseApp.initializeApp(options);
+            System.out.println("Firebase initialized successfully");
+        }
+
+        // Step 2: Return the Firestore instance tied to the current app lifecycle
+        // This prevents the "Firestore client has already been closed" error during
+        // hot-reloads
         return FirestoreClient.getFirestore();
     }
 }
