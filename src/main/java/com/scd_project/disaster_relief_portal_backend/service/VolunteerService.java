@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
@@ -15,6 +16,24 @@ import java.util.stream.Collectors;
 public class VolunteerService {
 
     private final Firestore firestore;
+
+    public Map<String, Object> getVolunteerStats(String volunteerId) throws ExecutionException, InterruptedException {
+        List<ReliefRequest> tasks = getAssignedTasks(volunteerId);
+
+        long completedCount = tasks.stream().filter(t -> "Completed".equals(t.getStatus())).count();
+        double totalHours = tasks.stream().mapToDouble(ReliefRequest::getHoursSpent).sum();
+
+        ReliefRequest activeAssignment = tasks.stream()
+                .filter(t -> !"Completed".equals(t.getStatus()))
+                .sorted((a, b) -> Long.compare(b.getTimestamp(), a.getTimestamp()))
+                .findFirst()
+                .orElse(null);
+
+        return Map.of(
+                "completedTasks", completedCount,
+                "totalHours", totalHours,
+                "activeAssignment", activeAssignment != null ? activeAssignment : "none");
+    }
 
     // 1. Update availabilityStatus in the "users" collection
     public String updateStatus(String userId, String status) throws ExecutionException, InterruptedException {
@@ -34,5 +53,13 @@ public class VolunteerService {
         return future.get().getDocuments().stream()
                 .map(doc -> doc.toObject(ReliefRequest.class))
                 .collect(Collectors.toList());
+    }
+
+    public String updateTaskStatus(String requestId, String status) throws ExecutionException, InterruptedException {
+        // requestId is the ID of the ReliefRequest
+        DocumentReference requestRef = firestore.collection("requests").document(requestId);
+        requestRef.update("status", status).get(); // Update the status field
+
+        return "Task " + requestId + " marked as " + status;
     }
 }

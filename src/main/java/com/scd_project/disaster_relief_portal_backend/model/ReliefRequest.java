@@ -16,5 +16,6 @@ public class ReliefRequest {
     private String address;
     private String status; // "Pending", "Approved", "Rejected", "Completed"
     private String assignedVolunteerId; // Initially null
+    private double hoursSpent;
     private Long timestamp; // For sorting history
 }
