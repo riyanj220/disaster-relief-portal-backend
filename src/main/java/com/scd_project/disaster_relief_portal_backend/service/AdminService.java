@@ -4,6 +4,7 @@ import com.google.cloud.firestore.*;
 import com.scd_project.disaster_relief_portal_backend.model.InventoryItem;
 import com.scd_project.disaster_relief_portal_backend.model.ReliefRequest;
 import com.scd_project.disaster_relief_portal_backend.model.User;
+import com.scd_project.disaster_relief_portal_backend.util.ResourceProcessingEngine;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -19,15 +20,17 @@ public class AdminService {
 
     private final Firestore firestore;
 
-    // Dashboard summary
+    // Generics
+    private final ResourceProcessingEngine<InventoryItem> inventoryEngine = new ResourceProcessingEngine<>();
+    private final ResourceProcessingEngine<Map<String, Object>> requestUpdateEngine = new ResourceProcessingEngine<>();
+
     public Map<String, Object> getDashboardStats() throws ExecutionException, InterruptedException {
-        List<ReliefRequest> allRequests = getAllRequests(); // Already excludes Rejected
+        List<ReliefRequest> allRequests = getAllRequests();
         List<User> volunteers = getAllVolunteers();
         List<InventoryItem> inventory = getAllInventory();
 
         long pendingCount = allRequests.stream().filter(r -> "Pending".equals(r.getStatus())).count();
         long criticalStock = inventory.stream().filter(i -> i.getQuantity() <= 10).count();
-        // Assuming "Active" means Approved but not yet Completed
         long activeMissions = allRequests.stream().filter(r -> "Approved".equals(r.getStatus())).count();
 
         return Map.of(
@@ -37,47 +40,52 @@ public class AdminService {
                 "criticalItems", criticalStock,
                 "topRequests", allRequests.stream()
                         .filter(r -> "Pending".equals(r.getStatus()))
-                        .sorted((a, b) -> b.getUrgency().compareTo(a.getUrgency())) // Simple urgency sort
+                        .sorted((a, b) -> b.getUrgency().compareTo(a.getUrgency()))
                         .limit(3)
                         .collect(Collectors.toList()));
     }
 
-    // --- REQUEST CONTROL ---
-
     public List<ReliefRequest> getAllRequests() throws ExecutionException, InterruptedException {
-        // 1. Fetch from Firestore excluding Rejected
-        // Note: We keep orderBy("status") because it's required for the inequality
-        // filter
         List<ReliefRequest> requests = firestore.collection("requests")
                 .whereNotEqualTo("status", "Rejected")
                 .orderBy("status")
-                .get()
-                .get()
-                .getDocuments()
-                .stream()
+                .get().get().getDocuments().stream()
                 .map(doc -> doc.toObject(ReliefRequest.class))
                 .collect(Collectors.toList());
 
-        // 2. Perform a final Java sort to ensure strictly latest first across all
-        // statuses
         return requests.stream()
                 .sorted((a, b) -> Long.compare(b.getTimestamp(), a.getTimestamp()))
                 .collect(Collectors.toList());
     }
 
+    // Threading and Concurrency via Resourse Processing Engine.
     public String updateRequestStatus(String requestId, Map<String, Object> updates)
             throws ExecutionException, InterruptedException {
-        // Updates can include "status" and "assignedVolunteerId"
-        firestore.collection("requests").document(requestId).update(updates).get();
-        return "Request " + requestId + " updated successfully.";
+
+        requestUpdateEngine.processResource(updates, () -> {
+            try {
+                firestore.collection("requests").document(requestId).update(updates).get();
+            } catch (Exception e) {
+                System.err.println("Async Request Update Failed");
+            }
+        });
+
+        return "Request " + requestId + " processing in background thread.";
     }
 
-    // --- INVENTORY MANAGEMENT ---
-
+    // Threading, Generics and ADT's via Resourse Processing Engine.
     public String addInventoryItem(InventoryItem item) throws ExecutionException, InterruptedException {
         String id = UUID.randomUUID().toString();
         item.setItemId(id);
-        firestore.collection("inventory").document(id).set(item).get();
+
+        inventoryEngine.processResource(item, () -> {
+            try {
+                firestore.collection("inventory").document(id).set(item).get();
+            } catch (Exception e) {
+                System.err.println("Async Inventory Save Failed");
+            }
+        });
+
         return id;
     }
 
@@ -87,10 +95,7 @@ public class AdminService {
                 .collect(Collectors.toList());
     }
 
-    // --- VOLUNTEER MANAGEMENT ---
-
     public List<User> getAllVolunteers() throws ExecutionException, InterruptedException {
-        // Filter users collection where role == "VOLUNTEER"
         return firestore.collection("users")
                 .whereEqualTo("role", "VOLUNTEER")
                 .get().get().getDocuments().stream()
@@ -103,7 +108,6 @@ public class AdminService {
         return "Volunteer " + volunteerId + " removed from network.";
     }
 
-    // Fetch history of a specific volunteer
     public List<ReliefRequest> getVolunteerTaskHistory(String volunteerId)
             throws ExecutionException, InterruptedException {
         return firestore.collection("requests")
