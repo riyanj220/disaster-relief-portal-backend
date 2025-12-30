@@ -45,17 +45,23 @@ public class AdminService {
     // --- REQUEST CONTROL ---
 
     public List<ReliefRequest> getAllRequests() throws ExecutionException, InterruptedException {
-        // 1. Filter out "Rejected" status
-        // 2. Sort by timestamp in DESCENDING order (latest first)
-        return firestore.collection("requests")
+        // 1. Fetch from Firestore excluding Rejected
+        // Note: We keep orderBy("status") because it's required for the inequality
+        // filter
+        List<ReliefRequest> requests = firestore.collection("requests")
                 .whereNotEqualTo("status", "Rejected")
-                .orderBy("status") // Firestore requirement: first orderBy must match the inequality filter field
-                .orderBy("timestamp", Query.Direction.DESCENDING)
+                .orderBy("status")
                 .get()
                 .get()
                 .getDocuments()
                 .stream()
                 .map(doc -> doc.toObject(ReliefRequest.class))
+                .collect(Collectors.toList());
+
+        // 2. Perform a final Java sort to ensure strictly latest first across all
+        // statuses
+        return requests.stream()
+                .sorted((a, b) -> Long.compare(b.getTimestamp(), a.getTimestamp()))
                 .collect(Collectors.toList());
     }
 

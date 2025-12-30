@@ -1,6 +1,5 @@
 package com.scd_project.disaster_relief_portal_backend.service;
 
-import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.*;
 import com.scd_project.disaster_relief_portal_backend.model.ReliefRequest;
 import lombok.RequiredArgsConstructor;
@@ -44,14 +43,20 @@ public class VolunteerService {
         return "Status updated to: " + status;
     }
 
-    // 2. Fetch requests assigned to this specific volunteer
     public List<ReliefRequest> getAssignedTasks(String volunteerId) throws ExecutionException, InterruptedException {
-        ApiFuture<QuerySnapshot> future = firestore.collection("requests")
+        // 1. Fetch tasks assigned to this volunteer
+        List<ReliefRequest> tasks = firestore.collection("requests")
                 .whereEqualTo("assignedVolunteerId", volunteerId)
-                .get();
-
-        return future.get().getDocuments().stream()
+                .get()
+                .get()
+                .getDocuments()
+                .stream()
                 .map(doc -> doc.toObject(ReliefRequest.class))
+                .collect(Collectors.toList());
+
+        // 2. Perform a descending sort by timestamp (latest first)
+        return tasks.stream()
+                .sorted((a, b) -> Long.compare(b.getTimestamp(), a.getTimestamp()))
                 .collect(Collectors.toList());
     }
 
